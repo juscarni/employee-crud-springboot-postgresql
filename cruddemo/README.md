@@ -90,6 +90,22 @@ La responsabilità della validazione è centralizzata nel Service: il DAO riceve
    ```
 3. L'applicazione parte di default sulla porta `8080`.
 
+## Documentazione Swagger
+
+L'API è documentata tramite **springdoc-openapi**, con Swagger UI configurata su un path personalizzato:
+
+```properties
+springdoc.swagger-ui.path=/index.html
+```
+
+Una volta avviata l'applicazione, la documentazione interattiva è disponibile su:
+
+```
+http://localhost:8080/index.html
+```
+
+Da qui è possibile esplorare tutti gli endpoint, i modelli di richiesta/risposta e testare direttamente le chiamate senza bisogno di Postman.
+
 ## Note
 
 Questo progetto fa parte di un percorso di apprendimento in più tappe sullo sviluppo backend con Spring Boot:
