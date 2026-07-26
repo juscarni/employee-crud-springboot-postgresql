@@ -1,18 +1,20 @@
-# CRUD Demo – Employee REST API (Spring Boot + PostgreSQL)
+# CRUD Demo – Employee REST API (Spring Boot + PostgreSQL + Spring Security)
 
-API REST per la gestione di dipendenti (employees), sviluppata come progetto di apprendimento su Spring Boot con persistenza reale tramite **JPA EntityManager** e database **PostgreSQL**.
+API REST per la gestione di dipendenti (employees), sviluppata come progetto di apprendimento su Spring Boot con persistenza reale tramite **JPA/Hibernate**, database **PostgreSQL**, e autenticazione/autorizzazione basata su ruoli con **Spring Security**.
 
-Questo progetto rappresenta il secondo step di un percorso didattico più ampio: dopo un primo progetto CRUD in memoria ([Studente API](https://github.com/juscarni/Studente--API)), questo introduce la persistenza dei dati con `EntityManager`, in preparazione alla migrazione verso `JpaRepository` (Spring Data JPA).
+Questo progetto rappresenta il secondo step di un percorso didattico più ampio: dopo un primo progetto CRUD in memoria ([Studente API](https://github.com/juscarni/Studente--API)), questo introduce la persistenza dei dati reale, relazioni tra entità e un sistema di sicurezza completo.
 
 ## Tecnologie utilizzate
 
 - **Java 21**
 - **Spring Boot 4.0.7**
-- **Hibernate ORM 7.2** (JPA EntityManager)
+- **Spring Security** (autenticazione Basic Auth + autorizzazione basata su ruoli)
+- **Hibernate ORM 7.2** (JPA)
 - **PostgreSQL** (database relazionale)
 - **Maven**
 - **Lombok** (riduzione del boilerplate su getter/setter/costruttori)
 - **Jackson** (`tools.jackson` / `JsonMapper`) per la serializzazione JSON e gli aggiornamenti parziali (PATCH)
+- **springdoc-openapi** (documentazione Swagger UI)
 - **Spring Boot DevTools** (hot reload in sviluppo)
 
 ## Architettura
@@ -20,22 +22,52 @@ Questo progetto rappresenta il secondo step di un percorso didattico più ampio:
 Il progetto segue un'architettura a livelli classica:
 
 ```
-Controller (REST)  →  Service (logica di business)  →  DAO (EntityManager)  →  Database (PostgreSQL)
+Controller (REST) → Service (logica di business) → DAO (EntityManager) → Database (PostgreSQL)
+                                                              ↑
+                                              Security (autenticazione/autorizzazione)
 ```
 
 - **`EmployeeRestController`** — espone gli endpoint REST, delega tutta la logica al Service
-- **`EmployeeService`** — orchestrazione, validazione dei dati in ingresso, gestione delle eccezioni di dominio
-- **`EmployeeDAOImpl`** — accesso ai dati tramite `EntityManager` (persist, merge, find, remove)
-- **`Employee`** — entità JPA mappata sulla tabella `employees`
+- **`EmployeeService`** — orchestrazione, validazione dei dati in ingresso, gestione delle eccezioni di dominio, gestione transazionale delle operazioni composite (es. creazione di un employee con un ruolo)
+- **`EmployeeDAOImpl` / `RoleDAOImpl`** — accesso ai dati tramite `EntityManager`
+- **`Employee` / `Role`** — entità JPA in relazione **Many-to-Many** (un employee può avere più ruoli, un ruolo può appartenere a più employee)
+- **`EmployeeUserDetailsService`** — implementazione custom di `UserDetailsService`, riutilizza `EmployeeDAO` per recuperare l'utente e i suoi ruoli al momento del login
+- **`SecurityConfig`** — configura la catena di filtri di sicurezza (`SecurityFilterChain`), le regole di autorizzazione per endpoint e il `PasswordEncoder`
 
-La responsabilità della validazione è centralizzata nel Service: il DAO riceve sempre dati già verificati (ad esempio, un id già confermato esistente prima di un'operazione di delete o update).
+La responsabilità della validazione è centralizzata nel Service: il DAO riceve sempre dati già verificati.
+
+## Sicurezza: autenticazione e autorizzazione
+
+L'autenticazione utilizza **HTTP Basic Auth**, con le password degli utenti salvate in forma hashata (**BCrypt**) nella colonna `password` della tabella `employees`.
+
+L'autorizzazione è basata sui ruoli assegnati a ciascun employee (`USER`, `MANAGER`, `ADMIN`), gestiti tramite una relazione Many-to-Many con la tabella `roles`:
+
+| Metodo | Endpoint | Ruoli autorizzati |
+|---|---|---|
+| GET | `/api/employees/**` | `USER`, `MANAGER`, `ADMIN` |
+| POST | `/api/employees/**` | `MANAGER`, `ADMIN` |
+| PATCH | `/api/employees/**` | `MANAGER`, `ADMIN` |
+| DELETE | `/api/employees/**` | `ADMIN` |
+
+La protezione **CSRF** è disabilitata, poiché l'API è stateless (nessuna sessione/cookie, autenticazione ad ogni richiesta tramite header `Authorization`).
+
+### Struttura del database (relazione Many-to-Many)
+
+```
+employees ←──── employee_roles ────→ roles
+   id                employee_id       id
+   email             role_id           role
+   password
+   first_name
+   last_name
+```
 
 ## Funzionalità
 
 - Operazioni CRUD complete su un'entità `Employee`
 - Ricerca per ID e per email
 - Aggiornamento parziale (**PATCH**) tramite `Map<String, Object>` e `JsonMapper.updateValue()`, con protezione esplicita contro la modifica dell'id tramite payload
-- Gestione centralizzata delle eccezioni con una classe custom `EmployeeNotFoundException`, tradotta in risposte HTTP appropriate (404 Not Found, 400 Bad Request) con corpo JSON strutturato:
+- Gestione centralizzata delle eccezioni con classi custom (`EmployeeNotFoundException`, `EmployeeExceptionHandler`), tradotta in risposte HTTP appropriate (404, 400, 401, 403) con corpo JSON strutturato:
   ```json
   {
     "message": "there is not an employee in the database with the id : 25",
@@ -43,18 +75,22 @@ La responsabilità della validazione è centralizzata nel Service: il DAO riceve
     "status": 404
   }
   ```
-- Popolamento automatico di dati di esempio all'avvio dell'applicazione (`@PostConstruct`)
+- Autenticazione HTTP Basic Auth con password hashate (BCrypt)
+- Autorizzazione granulare per endpoint, basata sui ruoli dell'utente autenticato
+- Popolamento automatico di dati di esempio all'avvio dell'applicazione tramite `CommandLineRunner` (`DataSeeder`), con logica *find-or-create* per evitare la duplicazione dei ruoli in database
 
 ## Endpoint disponibili
 
-| Metodo | Endpoint | Descrizione |
-|---|---|---|
-| GET | `/api/employees` | Restituisce tutti gli impiegati |
-| GET | `/api/employees/{id}` | Restituisce un impiegato tramite ID |
-| GET | `/api/employees/email/{email}` | Restituisce un impiegato tramite email |
-| POST | `/api/employees` | Crea un nuovo impiegato |
-| PATCH | `/api/employees/{id}` | Aggiorna parzialmente un impiegato esistente |
-| DELETE | `/api/employees/{id}` | Elimina un impiegato tramite ID |
+| Metodo | Endpoint | Descrizione | Ruoli richiesti |
+|---|---|---|---|
+| GET | `/api/employees` | Restituisce tutti gli impiegati | USER, MANAGER, ADMIN |
+| GET | `/api/employees/{id}` | Restituisce un impiegato tramite ID | USER, MANAGER, ADMIN |
+| GET | `/api/employees/email/{email}` | Restituisce un impiegato tramite email | USER, MANAGER, ADMIN |
+| POST | `/api/employees` | Crea un nuovo impiegato | MANAGER, ADMIN |
+| PATCH | `/api/employees/{id}` | Aggiorna parzialmente un impiegato esistente | MANAGER, ADMIN |
+| DELETE | `/api/employees/{id}` | Elimina un impiegato tramite ID | ADMIN |
+
+Tutte le richieste richiedono autenticazione HTTP Basic Auth (header `Authorization: Basic <credenziali>`).
 
 ### Esempio di richiesta POST
 
@@ -76,6 +112,18 @@ La responsabilità della validazione è centralizzata nel Service: il DAO riceve
 
 > Nota: il payload di un PATCH non può contenere la chiave `"id"` — un tentativo di modifica dell'id viene rifiutato con un errore 400.
 
+### Esempio di risposta in caso di autorizzazione insufficiente
+
+```json
+{
+    "timestamp": "2026-07-26T13:22:46.070Z",
+    "status": 403,
+    "error": "Forbidden",
+    "message": "Forbidden",
+    "path": "/api/employees/5"
+}
+```
+
 ## Come avviare il progetto
 
 1. Assicurati di avere un'istanza PostgreSQL in esecuzione e configura le credenziali in `application.properties`:
@@ -88,7 +136,7 @@ La responsabilità della validazione è centralizzata nel Service: il DAO riceve
    ```bash
    ./mvnw spring-boot:run
    ```
-3. L'applicazione parte di default sulla porta `8080`.
+3. L'applicazione parte di default sulla porta `8080`. Al primo avvio, `DataSeeder` popola automaticamente il database con employee di esempio, ciascuno con una password (hashata) e un ruolo assegnato.
 
 ## Documentazione Swagger
 
@@ -104,18 +152,19 @@ Una volta avviata l'applicazione, la documentazione interattiva è disponibile s
 http://localhost:8080/index.html
 ```
 
-Da qui è possibile esplorare tutti gli endpoint, i modelli di richiesta/risposta e testare direttamente le chiamate senza bisogno di Postman.
-
 ## Note
 
 Questo progetto fa parte di un percorso di apprendimento in più tappe sullo sviluppo backend con Spring Boot:
 
 1. CRUD in memoria ([Studente API](https://github.com/juscarni/Studente--API)) — logica di base senza persistenza
-2. **DAO con EntityManager + PostgreSQL (questo progetto)** — introduzione della persistenza reale
-3. DAO con EntityManager + MySQL
-4. Migrazione verso `JpaRepository` (Spring Data JPA)
+2. **CRUD con persistenza reale, relazioni Many-to-Many e Spring Security (questo progetto)**
+3. Migrazione verso `JpaRepository` (Spring Data JPA)
+4. Autenticazione con JWT (in programma)
 
 ## Autore
 
 Nsayi Juscarni Geoffroy
-Progetto realizzato a scopo didattico per approfondire Spring Boot, JPA/Hibernate e la progettazione di API REST con persistenza reale.
+Progetto realizzato a scopo didattico per approfondire Spring Boot, JPA/Hibernate, la progettazione di API REST e Spring Security.
+
+- [LinkedIn](https://linkedin.com/in/juscarni-geoffroy-nsayi-950a8b306)
+- [GitHub](https://github.com/juscarni)
