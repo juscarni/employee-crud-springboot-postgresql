@@ -4,13 +4,16 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.juscarni.cruddemo.entity.Employee;
+import com.juscarni.cruddemo.entity.Roles;
 import com.juscarni.cruddemo.repository.EmployeeDAO;
+import com.juscarni.cruddemo.repository.RolesDAO;
 import com.juscarni.cruddemo.rest.EmployeeNotFoundException;
 
-import jakarta.annotation.PostConstruct;
+import jakarta.transaction.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
@@ -18,37 +21,44 @@ public class EmployeeService {
     
     private EmployeeDAO employeeDAO;
     private JsonMapper jsonMapper;
+    private RolesDAO rolesDAO;
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
-    public EmployeeService(EmployeeDAO employeeDAO, JsonMapper jsonMapper){
+    public EmployeeService(EmployeeDAO employeeDAO, JsonMapper jsonMapper , RolesDAO rolesDAO, PasswordEncoder passwordEncoder){
         this.employeeDAO = employeeDAO;
         this.jsonMapper = jsonMapper;
+        this.rolesDAO = rolesDAO;
+        this.passwordEncoder = passwordEncoder;
     }
 
 
-    @PostConstruct
-    private void init() {
-        createEmployee(new Employee("John", "Doe", "john.doe@gmail.com"));
-        createEmployee(new Employee("Jane", "Smith", "jane.smith@gmail.com"));
-        createEmployee(new Employee("Michael", "Johnson", "michael.johnson@gmail.com"));
-        createEmployee(new Employee("Emily", "Brown", "emily.brown@gmail.com"));
-        createEmployee(new Employee("David", "Wilson", "david.wilson@gmail.com"));
-        createEmployee(new Employee("Sarah", "Taylor", "sarah.taylor@gmail.com"));
-        createEmployee(new Employee("Daniel", "Anderson", "daniel.anderson@gmail.com"));
-        createEmployee(new Employee("Laura", "Thomas", "laura.thomas@gmail.com"));
-        createEmployee(new Employee("James", "Jackson", "james.jackson@gmail.com"));
-        createEmployee(new Employee("Sophia", "White", "sophia.white@gmail.com"));
-        createEmployee(new Employee("William", "Harris", "william.harris@gmail.com"));
-        createEmployee(new Employee("Olivia", "Martin", "olivia.martin@gmail.com"));
-        createEmployee(new Employee("Benjamin", "Thompson", "benjamin.thompson@gmail.com"));
-        createEmployee(new Employee("Emma", "Garcia", "emma.garcia@gmail.com"));
-        createEmployee(new Employee("Lucas", "Martinez", "lucas.martinez@gmail.com"));
-        createEmployee(new Employee("Mia", "Robinson", "mia.robinson@gmail.com"));
-        createEmployee(new Employee("Alexander", "Clark", "alexander.clark@gmail.com"));
-        createEmployee(new Employee("Charlotte", "Rodriguez", "charlotte.rodriguez@gmail.com"));
-        createEmployee(new Employee("Henry", "Lewis", "henry.lewis@gmail.com"));
-        createEmployee(new Employee("Amelia", "Walker", "amelia.walker@gmail.com"));
+    /*@PostConstruct
+    public void init() {
+        createEmployeeWithRole("John", "Doe", "john.doe@gmail.com", "ROLE_USER");
+        createEmployeeWithRole("Jane", "Smith", "jane.smith@gmail.com", "ROLE_MANAGER");
+        createEmployeeWithRole("Michael", "Johnson", "michael.johnson@gmail.com", "ROLE_ADMIN");
+        createEmployeeWithRole("Emily", "Brown", "emily.brown@gmail.com", "ROLE_USER");
+        createEmployeeWithRole("David", "Wilson", "david.wilson@gmail.com", "ROLE_MANAGER");
+        createEmployeeWithRole("Sarah", "Taylor", "sarah.taylor@gmail.com", "ROLE_ADMIN");
+        createEmployeeWithRole("Daniel", "Anderson", "daniel.anderson@gmail.com", "ROLE_USER");
+        createEmployeeWithRole("Laura", "Thomas", "laura.thomas@gmail.com", "ROLE_MANAGER");
+        createEmployeeWithRole("James", "Jackson", "james.jackson@gmail.com", "ROLE_ADMIN");
+    }*/
+    
+    @Transactional
+    public void createEmployeeWithRole(String firstName, String lastName, String email, String password,  String roleName) {
+       Employee employee = new Employee(firstName, lastName, email, password);
+       employee.setPassword(this.passwordEncoder.encode(password)); 
+
+        Roles role = rolesDAO.findByRole(roleName); // cherche en base d'abord
+        if (role == null) {
+            role = rolesDAO.save(new Roles().setRole(roleName)); // crée seulement si absent
+        }
+        employee.getRoles().add(role);
+        createEmployee(employee);
     }
+
 
     public void createEmployee(Employee employee){
         this.employeeDAO.save(employee);
@@ -60,6 +70,10 @@ public class EmployeeService {
         }
         Employee tempEmployee = getEmployeeById(id);
         Employee employee = this.jsonMapper.updateValue(tempEmployee, payload);
+
+        if(payload.containsKey("password")){
+            employee.setPassword(passwordEncoder.encode(String.valueOf(payload.get("password"))));
+        }
 
         return this.employeeDAO.update(employee);
     }
