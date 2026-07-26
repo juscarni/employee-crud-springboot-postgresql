@@ -50,7 +50,7 @@ public class Employee {
         joinColumns = @JoinColumn(name = "employee_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
-    private Set<Roles> roles = new HashSet<>();
+    private Set<Role> roles = new HashSet<>();
 
     public Employee(String firstName, String lastName, String email, String password){
         this.firstName = firstName;

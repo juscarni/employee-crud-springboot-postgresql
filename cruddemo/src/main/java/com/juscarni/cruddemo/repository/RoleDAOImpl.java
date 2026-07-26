@@ -5,36 +5,36 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
-import com.juscarni.cruddemo.entity.Roles;
+import com.juscarni.cruddemo.entity.Role;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 
 @Repository
-public class RolesDAOImpl implements RolesDAO{
+public class RoleDAOImpl implements RolesDAO{
     
     private EntityManager entityManager;
 
     @Autowired
-    public RolesDAOImpl(EntityManager entityManager) {
+    public RoleDAOImpl(EntityManager entityManager) {
         this.entityManager = entityManager;
     }
 
     @Override
     @Transactional
-    public Roles save(Roles role) {
+    public Role save(Role role) {
       this.entityManager.persist(role);
       return role;
     }
 
     @Override
-    public Roles findByRole(String role) {
-        TypedQuery<Roles> query = entityManager.createQuery(
-            "FROM Roles WHERE role = :theRole", Roles.class);
+    public Role findByRole(String role) {
+        TypedQuery<Role> query = entityManager.createQuery(
+            "FROM Role WHERE role = :theRole", Role.class);
         query.setParameter("theRole", role);
         
-        List<Roles> results = query.getResultList();
+        List<Role> results = query.getResultList();
         return results.isEmpty() ? null : results.get(0);
     }
 }

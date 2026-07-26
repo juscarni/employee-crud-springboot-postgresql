@@ -1,8 +1,8 @@
 package com.juscarni.cruddemo.repository;
 
-import com.juscarni.cruddemo.entity.Roles;
+import com.juscarni.cruddemo.entity.Role;
 
 public interface RolesDAO {
-    Roles save(Roles role);
-    Roles findByRole(String role);
+    Role save(Role role);
+    Role findByRole(String role);
 }

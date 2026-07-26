@@ -8,7 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.juscarni.cruddemo.entity.Employee;
-import com.juscarni.cruddemo.entity.Roles;
+import com.juscarni.cruddemo.entity.Role;
 import com.juscarni.cruddemo.repository.EmployeeDAO;
 import com.juscarni.cruddemo.repository.RolesDAO;
 import com.juscarni.cruddemo.rest.EmployeeNotFoundException;
@@ -51,9 +51,9 @@ public class EmployeeService {
        Employee employee = new Employee(firstName, lastName, email, password);
        employee.setPassword(this.passwordEncoder.encode(password)); 
 
-        Roles role = rolesDAO.findByRole(roleName); // cherche en base d'abord
+        Role role = rolesDAO.findByRole(roleName); // cherche en base d'abord
         if (role == null) {
-            role = rolesDAO.save(new Roles().setRole(roleName)); // crée seulement si absent
+            role = rolesDAO.save(new Role().setRole(roleName)); // crée seulement si absent
         }
         employee.getRoles().add(role);
         createEmployee(employee);
